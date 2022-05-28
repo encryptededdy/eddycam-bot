@@ -9,10 +9,10 @@ logging.basicConfig(
 )
 
 with open('imageurl.txt') as f:
-    imageurl = f.readline()
+    imageurl = f.readline().strip()
 
 with open('key.txt') as f:
-    token = f.readline()
+    token = f.readline().strip()
 
 async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="nyaa~")
