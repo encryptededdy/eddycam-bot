@@ -1,0 +1,11 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+telegram = "20.0a0"
+requests = "*"
+python-telegram-bot = "==20.0a0"
+
+[dev-packages]
