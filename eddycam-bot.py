@@ -55,7 +55,7 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
         return
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'll record a 10s clip for you!...")
     path = os.path.join(sys.argv[1], 'rtsp_cache_recording.mp4')
-    os.system(f'ffmpeg -y -i "{rtspurl}" -c copy -t 10 {path}')
+    os.system(f'ffmpeg -y -rtsp_transport tcp -i "{rtspurl}" -c copy -t 10 {path}')
     await context.bot.send_video(update.effective_chat.id, open(path, "rb"), caption="here's your clip ^w^",
                                  write_timeout=60)
 
