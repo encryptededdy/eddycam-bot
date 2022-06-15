@@ -11,18 +11,16 @@ logging.basicConfig(
 )
 
 with open('imageurl.txt') as f:
-    imageurl = f.readline().strip()
+    imageurls = list(filter(None, (line.rstrip() for line in f)))
 
 with open('rtspurl.txt') as f:
-    rtspurl = f.readline().strip()
+    rtspurls = list(filter(None, (line.rstrip() for line in f)))
 
 with open('key.txt') as f:
     token = f.readline().strip()
 
-
 def process_chat_id(line):
     return int(line.strip())
-
 
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
@@ -39,10 +37,16 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="b...baka! You're not allowed to see my photos!")
         return
-    image_request = requests.get(imageurl, stream=True)
+    try:
+        camera_index = int(context.args[0]) if len(context.args) > 0 else 0
+    except ValueError:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
+        return
+    if (camera_index >= len(imageurls)):
+         await context.bot.send_message(chat_id=update.effective_chat.id, text="Camera doesn't exist")
+         return
+    image_request = requests.get(imageurls[camera_index], stream=True)
     image_request.raw.decode_content = True
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text="Sure thing, senpai! Let me take a picture now!")
     await context.bot.send_photo(update.effective_chat.id, image_request.raw, caption="here's your picture uwu")
 
 
@@ -53,9 +57,17 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="b...baka! You're not allowed to see my videos!")
         return
+    try:
+        camera_index = int(context.args[0]) if len(context.args) > 0 else 0
+    except ValueError:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
+        return
+    if (camera_index >= len(rtspurls)):
+         await context.bot.send_message(chat_id=update.effective_chat.id, text="Camera doesn't exist")
+         return
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'll record a 10s clip for you!...")
     path = os.path.join(sys.argv[1], 'rtsp_cache_recording.mp4')
-    os.system(f'ffmpeg -y -rtsp_transport tcp -i "{rtspurl}" -c copy -t 10 {path}')
+    os.system(f'ffmpeg -y -rtsp_transport tcp -i "{rtspurls[camera_index]}" -c copy -t 10 {path}')
     await context.bot.send_video(update.effective_chat.id, open(path, "rb"), caption="here's your clip ^w^",
                                  write_timeout=60)
 
