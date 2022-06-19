@@ -41,6 +41,7 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="b...baka! You're not allowed to see my photos!")
         return
+    isRaw = (len(context.args) > 1 and context.args[1] == "raw")
     try:
         camera_index = int(context.args[0]) if len(context.args) > 0 else -1
     except ValueError:
@@ -55,7 +56,10 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
         await context.bot.send_media_group(update.effective_chat.id, photos)
     else:
         image_request = requests.get(imageurls[camera_index])
-        await context.bot.send_photo(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu")
+        if isRaw:
+            await context.bot.send_document(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu")
+        else:
+            await context.bot.send_photo(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu", filename="eddycam.jpg")
 
 
 async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
