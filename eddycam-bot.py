@@ -1,6 +1,6 @@
 import logging
 import requests
-from telegram import Update
+from telegram import Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler
 import os
 import sys
@@ -25,6 +25,10 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
+def to_input_media_photo(url):
+    image_request = requests.get(url)
+    return InputMediaPhoto(media = bytes(image_request.content))
+
 
 async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="nyaa~")
@@ -38,16 +42,20 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
                                        text="b...baka! You're not allowed to see my photos!")
         return
     try:
-        camera_index = int(context.args[0]) if len(context.args) > 0 else 0
+        camera_index = int(context.args[0]) if len(context.args) > 0 else -1
     except ValueError:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
         return
     if (camera_index >= len(imageurls)):
          await context.bot.send_message(chat_id=update.effective_chat.id, text="Camera doesn't exist")
          return
-    image_request = requests.get(imageurls[camera_index], stream=True)
-    image_request.raw.decode_content = True
-    await context.bot.send_photo(update.effective_chat.id, image_request.raw, caption="here's your picture uwu")
+    if (camera_index == -1):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Taking your pictures...")
+        photos = list(map(to_input_media_photo, imageurls))
+        await context.bot.send_media_group(update.effective_chat.id, photos)
+    else:
+        image_request = requests.get(imageurls[camera_index])
+        await context.bot.send_photo(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu")
 
 
 async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
