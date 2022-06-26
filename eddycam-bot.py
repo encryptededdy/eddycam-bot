@@ -29,6 +29,7 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
+dump1090_url = "http://eddypi2:8080/data/aircraft.json"
 last_env_request_time = 0
 env_cache = ""
 
@@ -37,16 +38,16 @@ def to_input_media_photo(url):
     return InputMediaPhoto(media = bytes(image_request.content))
 
 async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
-    aircraft = parse1090.parse_aircraft("http://localhost:8080/data/aircraft.json")
-    output = f"*EddyRadio can currently see *{len(aircraft)}* transponders, of which *{len(parse1090.in_sky(aircraft))}* are in the sky and *{len(parse1090.with_ident(aircraft))}* have a valid ident\nUse /adsb_list to list aircraft"
+    aircraft = parse1090.parse_aircraft(dump1090_url)
+    output = f"EddyRadio can currently see *{len(aircraft)}* transponders, of which *{len(parse1090.in_sky(aircraft))}* are in the air and *{len(parse1090.with_ident(aircraft))}* have a valid ident"
     await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN)
 
 async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
-    aircraft = parse1090.parse_aircraft("http://localhost:8080/data/aircraft.json")
+    aircraft = parse1090.parse_aircraft(dump1090_url)
     filtered_aircraft = parse1090.in_sky_and_ident(aircraft)
     output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
-    filtered_aircraft_text = [f"{ac.ident} at {ac.alt_baro}ft - {ac.rssi} dBm" for ac in filtered_aircraft]
-    "\n".join(filtered_aircraft_text)
+    filtered_aircraft_text = [f"{ac.ident.strip()} at {ac.alt_baro}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
+    output = output + "\n".join(filtered_aircraft_text)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN)
 
 async def environment(update: Update, context: CallbackContext.DEFAULT_TYPE):
