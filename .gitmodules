@@ -1,0 +1,3 @@
+[submodule "qingping-python"]
+	path = qingping
+	url = https://github.com/encryptededdy/qingping-python
