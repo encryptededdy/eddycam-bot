@@ -4,6 +4,7 @@ from telegram import Update, InputMediaPhoto
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler, filters
 from qingping import qingping
+from parse1090 import parse1090
 import os
 import sys
 import time
@@ -35,12 +36,25 @@ def to_input_media_photo(url):
     image_request = requests.get(url)
     return InputMediaPhoto(media = bytes(image_request.content))
 
+async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    aircraft = parse1090.parse_aircraft("http://localhost:8080/data/aircraft.json")
+    output = f"*EddyRadio can currently see *{len(aircraft)}* transponders, of which *{len(parse1090.in_sky(aircraft))}* are in the sky and *{len(parse1090.with_ident(aircraft))}* have a valid ident\nUse /adsb_list to list aircraft"
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN)
+
+async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    aircraft = parse1090.parse_aircraft("http://localhost:8080/data/aircraft.json")
+    filtered_aircraft = parse1090.in_sky_and_ident(aircraft)
+    output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
+    filtered_aircraft_text = [f"{ac.ident} at {ac.alt_baro}ft - {ac.rssi} dBm" for ac in filtered_aircraft]
+    "\n".join(filtered_aircraft_text)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN)
+
 async def environment(update: Update, context: CallbackContext.DEFAULT_TYPE):
     global last_env_request_time
     global env_cache
     time_until_limit = last_env_request_time + 120 - int(time.time())
     if time_until_limit > 0:
-        pretty = f"*Environment in Eddy's Room (Cached, clear in {time_until_limit})*\n" + env_cache
+        pretty = f"*Environment in Eddy's Room (cached {time_until_limit}s)*\n" + env_cache
         await context.bot.send_message(chat_id=update.effective_chat.id, text=pretty, parse_mode=ParseMode.MARKDOWN)
         return
     try:
@@ -104,9 +118,13 @@ if __name__ == '__main__':
     neko_handler = CommandHandler('neko', neko)
     snapshot_handler = CommandHandler('snapshot', snapshot, filters=filter)
     clip_handler = CommandHandler('clip', clip, filters=filter)
+    adsb_summary_handler = CommandHandler('adsb_summary', adsb_summary, filters=filter)
+    adsb_list_handler = CommandHandler('adsb_list', adsb_list, filters=filter)
     application.add_handler(neko_handler)
     application.add_handler(snapshot_handler)
     application.add_handler(clip_handler)
     application.add_handler(environment_handler)
+    application.add_handler(adsb_list_handler)
+    application.add_handler(adsb_summary_handler)
 
     application.run_polling()
