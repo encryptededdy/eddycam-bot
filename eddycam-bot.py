@@ -1,7 +1,9 @@
 import logging
 import requests
 from telegram import Update, InputMediaPhoto
+from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler
+from qingping import qingping
 import os
 import sys
 
@@ -29,6 +31,10 @@ def to_input_media_photo(url):
     image_request = requests.get(url)
     return InputMediaPhoto(media = bytes(image_request.content))
 
+async def environment(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    result = list(qingping.get_device_info().items())[0][1]
+    pretty = qingping.airquality_pretty(result, True)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=pretty, parse_mode=ParseMode.MARKDOWN)
 
 async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="nyaa~")
@@ -87,11 +93,13 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
 if __name__ == '__main__':
     application = ApplicationBuilder().token(token).build()
 
+    environment_handler = CommandHandler('environment', environment)
     neko_handler = CommandHandler('neko', neko)
     snapshot_handler = CommandHandler('snapshot', snapshot)
     clip_handler = CommandHandler('clip', clip)
     application.add_handler(neko_handler)
     application.add_handler(snapshot_handler)
     application.add_handler(clip_handler)
+    application.add_handler(environment_handler)
 
     application.run_polling()
