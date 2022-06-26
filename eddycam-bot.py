@@ -29,6 +29,7 @@ with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
 last_env_request_time = 0
+env_cache = ""
 
 def to_input_media_photo(url):
     image_request = requests.get(url)
@@ -36,13 +37,20 @@ def to_input_media_photo(url):
 
 async def environment(update: Update, context: CallbackContext.DEFAULT_TYPE):
     global last_env_request_time
+    global env_cache
     time_until_limit = last_env_request_time + 120 - int(time.time())
     if time_until_limit > 0:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimit, try again in {time_until_limit}s")
+        pretty = f"*Environment in Eddy's Room (Cached, clear in {time_until_limit})*\n" + env_cache
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=pretty, parse_mode=ParseMode.MARKDOWN)
         return
-    result = list(qingping.get_device_info().items())[0][1]
+    try:
+        result = list(qingping.get_device_info().items())[0][1]
+    except requests.exceptions.Timeout:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Xiaomi API is crappy and timed out")
+        return
     pretty = "*Environment in Eddy's Room (15min res)*\n" + qingping.airquality_pretty(result, True)
     last_env_request_time = int(time.time())
+    env_cache = qingping.airquality_pretty(result, True)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=pretty, parse_mode=ParseMode.MARKDOWN)
 
 async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
