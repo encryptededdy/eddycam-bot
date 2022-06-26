@@ -1,3 +1,6 @@
 [submodule "qingping"]
 	path = qingping
 	url = https://github.com/encryptededdy/qingping-python
+[submodule "parse1090"]
+	path = parse1090
+	url = https://github.com/encryptededdy/python-dump1090-parser
