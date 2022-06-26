@@ -2,10 +2,11 @@ import logging
 import requests
 from telegram import Update, InputMediaPhoto
 from telegram.constants import ParseMode
-from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler
+from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler, filters
 from qingping import qingping
 import os
 import sys
+import time
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -27,13 +28,21 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
+last_env_request_time = 0
+
 def to_input_media_photo(url):
     image_request = requests.get(url)
     return InputMediaPhoto(media = bytes(image_request.content))
 
 async def environment(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    global last_env_request_time
+    time_until_limit = last_env_request_time + 120 - int(time.time())
+    if time_until_limit > 0:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimit, try again in {time_until_limit}s")
+        return
     result = list(qingping.get_device_info().items())[0][1]
-    pretty = qingping.airquality_pretty(result, True)
+    pretty = "*Environment in Eddy's Room (15min res)*\n" + qingping.airquality_pretty(result, True)
+    last_env_request_time = int(time.time())
     await context.bot.send_message(chat_id=update.effective_chat.id, text=pretty, parse_mode=ParseMode.MARKDOWN)
 
 async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
@@ -41,12 +50,6 @@ async def neko(update: Update, context: CallbackContext.DEFAULT_TYPE):
 
 
 async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
-    if (update.effective_chat.id not in allowed_chats):
-        print("Declined snapshot request from chat " + str(update.effective_chat.id))
-        print(allowed_chats)
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="b...baka! You're not allowed to see my photos!")
-        return
     isRaw = (len(context.args) > 1 and context.args[1] == "raw")
     try:
         camera_index = int(context.args[0]) if len(context.args) > 0 else -1
@@ -69,12 +72,6 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
 
 
 async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
-    if (update.effective_chat.id not in allowed_chats):
-        print("Declined clip request from chat " + str(update.effective_chat.id))
-        print(allowed_chats)
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="b...baka! You're not allowed to see my videos!")
-        return
     try:
         camera_index = int(context.args[0]) if len(context.args) > 0 else 0
     except ValueError:
@@ -93,10 +90,12 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
 if __name__ == '__main__':
     application = ApplicationBuilder().token(token).build()
 
-    environment_handler = CommandHandler('environment', environment)
+    filter = filters.Chat(chat_id=allowed_chats)
+
+    environment_handler = CommandHandler('environment', environment, filters=filter)
     neko_handler = CommandHandler('neko', neko)
-    snapshot_handler = CommandHandler('snapshot', snapshot)
-    clip_handler = CommandHandler('clip', clip)
+    snapshot_handler = CommandHandler('snapshot', snapshot, filters=filter)
+    clip_handler = CommandHandler('clip', clip, filters=filter)
     application.add_handler(neko_handler)
     application.add_handler(snapshot_handler)
     application.add_handler(clip_handler)
