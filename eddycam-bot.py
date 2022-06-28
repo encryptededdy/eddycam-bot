@@ -1,5 +1,4 @@
 import logging
-from turtle import heading
 import requests
 from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
