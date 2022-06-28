@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import itertools
+import sftpcrawler
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,8 +35,14 @@ with open('adsb.txt') as f:
     dump1090_url = f.readline().strip()
 
 last_env_request_time = 0
+last_history_request_time = 0
 env_cache = ""
 aircraft_button_row_size = 3
+
+def remove_prefix(text, prefix):
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text  # or whatever
 
 def to_input_media_photo(url):
     image_request = requests.get(url)
@@ -46,11 +53,14 @@ def grouper(n, iterable, fillvalue=None):
     args = [iter(iterable)] * n
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
-def create_aircraft_inlinebuttons(sorted_ac):
-    buttons = [InlineKeyboardButton(ac.ident.strip(), callback_data=f"adsb_{ac.hex}") for ac in sorted_ac]
-    matrix = list(grouper(aircraft_button_row_size, buttons))
+def group_buttons(row_size, buttons):
+    matrix = list(grouper(row_size, buttons))
     matrix = [[inner for inner in outer if inner is not None] for outer in matrix] # remove any Nones and convert to list
     return matrix
+
+def create_aircraft_inlinebuttons(sorted_ac):
+    buttons = [InlineKeyboardButton(ac.ident.strip(), callback_data=f"adsb_{ac.hex}") for ac in sorted_ac]
+    return group_buttons(aircraft_button_row_size, buttons)
 
 async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
     aircraft = parse1090.parse_aircraft(dump1090_url)
@@ -70,7 +80,7 @@ async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
 
 async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE):
     query = update.callback_query
-    hex = query.data.lstrip("adsb_")
+    hex = remove_prefix(query.data, "adsb_")
     print("Getting data for "+hex)
     aircraft = parse1090.parse_aircraft(dump1090_url)
     target_list = list(filter(lambda ac: (ac.hex == hex), aircraft))
@@ -97,7 +107,7 @@ async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE
 
 async def adsb_map(update: Update, context: CallbackContext.DEFAULT_TYPE):
     query = update.callback_query
-    latlon = query.data.lstrip("map_").split("_", 1) # 0 is lat, 1 is lon
+    latlon = remove_prefix(query.data, "map_").split("_", 1) # 0 is lat, 1 is lon
     await query.answer()
     await context.bot.send_location(chat_id=update.effective_chat.id, latitude=float(latlon[0]), longitude=float(latlon[1]), horizontal_accuracy=3)
 
@@ -160,30 +170,83 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
     await context.bot.send_video(update.effective_chat.id, open(path, "rb"), caption="here's your clip ^w^",
                                  write_timeout=60)
 
+async def camera_history(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    try:
+        camera_index = int(context.args[0]) if len(context.args) > 0 else 0
+    except ValueError:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
+        return
+    if (camera_index < 0 or camera_index >= sftpcrawler.num_cameras()):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid camera ID")
+        return
+    days = sftpcrawler.list_days(camera_index)
+    buttons = [InlineKeyboardButton(day[0], callback_data=f"cameralog_{day[1]}") for day in days[:14]]
+    buttons_matrix = group_buttons(2, buttons)
+    keyboard = InlineKeyboardMarkup(buttons_matrix)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Avaliable Dates for Camera {camera_index}", reply_markup=keyboard)
+
+async def camera_history_browser(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    global last_history_request_time
+    if (last_history_request_time > int(time.time()) - 5):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Ratelimited")
+    query = update.callback_query
+    data = remove_prefix(query.data, "cameralog_").split("@")
+    folder = data[0]
+    image_id_requested = int(data[1]) if len(data) > 1 else None
+    cache_path = os.path.join(sys.argv[1], 'history.jpg')
+    last_history_request_time = int(time.time())
+    (id, max_id) = sftpcrawler.get_image(folder, cache_path, image_id_requested)
+    # Build up allowed nav buttons
+    minor_nav = []
+    if (id >= 3):
+        minor_nav.append(InlineKeyboardButton("<15m", callback_data=f"cameralog_{folder}@{id - 3}"))
+    if (id >= 1):
+        minor_nav.append(InlineKeyboardButton("<5m", callback_data=f"cameralog_{folder}@{id - 1}"))
+    if (id <= max_id - 1):
+        minor_nav.append(InlineKeyboardButton(">5m", callback_data=f"cameralog_{folder}@{id + 1}"))
+    if (id <= max_id - 3):
+        minor_nav.append(InlineKeyboardButton(">15m", callback_data=f"cameralog_{folder}@{id + 3}"))
+    major_nav = []
+    if (id >= 48):
+        major_nav.append(InlineKeyboardButton("<<4h", callback_data=f"cameralog_{folder}@{id - 48}"))
+    if (id >= 12):
+        major_nav.append(InlineKeyboardButton("<<1h", callback_data=f"cameralog_{folder}@{id - 12}"))
+    if (id <= max_id - 12):
+        major_nav.append(InlineKeyboardButton(">>1h", callback_data=f"cameralog_{folder}@{id + 12}"))
+    if (id <= max_id - 48):
+        major_nav.append(InlineKeyboardButton(">>4h", callback_data=f"cameralog_{folder}@{id + 48}"))
+    keyboard = InlineKeyboardMarkup([minor_nav, major_nav])
+    await query.answer()
+    if (image_id_requested == None):
+        # Fresh message
+        await query.edit_message_text(text=f"Selected {folder}")
+        await context.bot.send_photo(update.effective_chat.id, photo=open(cache_path, "rb"), reply_markup=keyboard)
+    else:
+        # Edit existing message
+        photo_to_send = InputMediaPhoto(media=open(cache_path, "rb"))
+        await query.edit_message_media(media=photo_to_send, reply_markup=keyboard)
+
 async def button_handler(update: Update, context: CallbackContext.DEFAULT_TYPE):
     query = update.callback_query
     if (query.data.startswith("adsb_")):
         await adsb_info_update(update, context)
     if (query.data.startswith("map_")):
         await adsb_map(update, context)
+    if (query.data.startswith("cameralog_")):
+        await camera_history_browser(update, context)
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(token).build()
 
     chat_filter = filters.Chat(chat_id=allowed_chats)
 
-    environment_handler = CommandHandler('environment', environment, filters=chat_filter)
-    neko_handler = CommandHandler('neko', neko)
-    snapshot_handler = CommandHandler('snapshot', snapshot, filters=chat_filter)
-    clip_handler = CommandHandler('clip', clip, filters=chat_filter)
-    adsb_summary_handler = CommandHandler('adsb_summary', adsb_summary, filters=chat_filter)
-    adsb_list_handler = CommandHandler('adsb_list', adsb_list, filters=chat_filter)
-    application.add_handler(neko_handler)
-    application.add_handler(snapshot_handler)
-    application.add_handler(clip_handler)
-    application.add_handler(environment_handler)
-    application.add_handler(adsb_list_handler)
-    application.add_handler(adsb_summary_handler)
+    application.add_handler(CommandHandler('camera_history', camera_history, filters=chat_filter))
+    application.add_handler(CommandHandler('neko', neko))
+    application.add_handler(CommandHandler('snapshot', snapshot, filters=chat_filter))
+    application.add_handler(CommandHandler('clip', clip, filters=chat_filter))
+    application.add_handler(CommandHandler('environment', environment, filters=chat_filter))
+    application.add_handler(CommandHandler('adsb_list', adsb_list, filters=chat_filter))
+    application.add_handler(CommandHandler('adsb_summary', adsb_summary, filters=chat_filter))
     application.add_handler(CallbackQueryHandler(button_handler))
 
     application.run_polling()

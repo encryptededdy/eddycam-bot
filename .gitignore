@@ -4,3 +4,5 @@ allowedchatid.txt
 rtspurl.txt
 qp_config.json
 adsb.txt
+sftp_config.json
+__pycache__/
