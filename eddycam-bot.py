@@ -29,7 +29,7 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
-dump1090_url = "http://eddypi2:8080/data/aircraft.json"
+dump1090_url = "http://localhost:8080/data/aircraft.json"
 last_env_request_time = 0
 env_cache = ""
 
@@ -45,6 +45,7 @@ async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
 async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
     aircraft = parse1090.parse_aircraft(dump1090_url)
     filtered_aircraft = parse1090.in_sky_and_ident(aircraft)
+    filtered_aircraft.sort(key = lambda ac: ac.rssi, reverse=True)
     output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
     filtered_aircraft_text = [f"{ac.ident.strip()} at {ac.alt_baro}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
     output = output + "\n".join(filtered_aircraft_text)
