@@ -63,7 +63,7 @@ async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
     filtered_aircraft = parse1090.with_ident(aircraft) if show_ground else parse1090.in_sky_and_ident(aircraft)
     filtered_aircraft.sort(key=lambda ac: ac.rssi, reverse=True)
     output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
-    filtered_aircraft_text = [f"{ac.ident.strip()} at {str(ac.alt_baro).replace(('ground', 'Ground / 0'))}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
+    filtered_aircraft_text = [f"{ac.ident.strip()} at {str(ac.alt_baro).replace('ground', 'Ground / 0')}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
     output = output + "\n".join(filtered_aircraft_text)
     keyboard = InlineKeyboardMarkup(create_aircraft_inlinebuttons(filtered_aircraft))
     await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
