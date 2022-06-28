@@ -85,11 +85,11 @@ async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE
     squawk = target.squawk or "Unknown"
     gs = target.gs or "Unknown"
     heading = target.track or "Unknown"
-    lat = float(target.lat) or "Unknown"
-    lon = float(target.lon) or "Unknown"
+    lat = format(target.lat, '.4f') if target.lat else "Unknown"
+    lon = format(target.lon, '.4f') if target.lat else "Unknown"
     alt = str(target.alt_baro).replace("ground", "Ground / 0")
-    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {alt}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat:.4f}°N, {lon:.4f}°E\n*Signal Strength:* {target.rssi} dBm\n[Find on FlightAware](https://flightaware.com/live/modes/{target.hex}/ident/{target.ident.strip()}/redirect)"
-    if (lat and lon):
+    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {alt}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat}°N, {lon}°E\n*Signal Strength:* {target.rssi} dBm\n[Find on FlightAware](https://flightaware.com/live/modes/{target.hex}/ident/{target.ident.strip()}/redirect)"
+    if (target.lat and target.lon):
         buttons[0].append(InlineKeyboardButton("Map", callback_data=f"map_{lat}_{lon}"))
     keyboard = InlineKeyboardMarkup(buttons)
     await query.answer()
