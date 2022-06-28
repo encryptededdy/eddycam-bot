@@ -36,6 +36,7 @@ with open('adsb.txt') as f:
 
 last_env_request_time = 0
 last_history_request_time = 0
+last_history_request = ""
 env_cache = ""
 aircraft_button_row_size = 3
 
@@ -81,7 +82,7 @@ async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
 async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE):
     query = update.callback_query
     hex = remove_prefix(query.data, "adsb_")
-    print("Getting data for "+hex)
+    logging.info("Getting data for "+hex)
     aircraft = parse1090.parse_aircraft(dump1090_url)
     target_list = list(filter(lambda ac: (ac.hex == hex), aircraft))
     buttons = [[ InlineKeyboardButton("Refresh", callback_data=query.data) ]]
@@ -187,9 +188,14 @@ async def camera_history(update: Update, context: CallbackContext.DEFAULT_TYPE):
 
 async def camera_history_browser(update: Update, context: CallbackContext.DEFAULT_TYPE):
     global last_history_request_time
+    global last_history_request
     if (last_history_request_time > int(time.time()) - 5):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Ratelimited")
     query = update.callback_query
+    if (query.data == last_history_request):
+        logging.warning("Ignored duplicate request")
+        return
+    last_history_request = query.data
     data = remove_prefix(query.data, "cameralog_").split("@")
     folder = data[0]
     image_id_requested = int(data[1]) if len(data) > 1 else None
