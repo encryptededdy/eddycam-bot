@@ -58,11 +58,13 @@ async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN)
 
 async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
+    show_ground = (len(context.args) > 0 and context.args[0] == "ground")
     aircraft = parse1090.parse_aircraft(dump1090_url)
-    filtered_aircraft = parse1090.in_sky_and_ident(aircraft)
+    filtered_aircraft = parse1090.with_ident(aircraft) if show_ground else parse1090.in_sky_and_ident(aircraft)
     filtered_aircraft.sort(key=lambda ac: ac.rssi, reverse=True)
     output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
-    filtered_aircraft_text = [f"{ac.ident.strip()} at {ac.alt_baro}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
+    alt = ac.alt_baro.replace("ground", "Ground / 0")
+    filtered_aircraft_text = [f"{ac.ident.strip()} at {alt}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
     output = output + "\n".join(filtered_aircraft_text)
     keyboard = InlineKeyboardMarkup(create_aircraft_inlinebuttons(filtered_aircraft))
     await context.bot.send_message(chat_id=update.effective_chat.id, text=output, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
@@ -86,7 +88,8 @@ async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE
     heading = target.track or "Unknown"
     lat = float(target.lat) or "Unknown"
     lon = float(target.lon) or "Unknown"
-    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {target.alt_baro}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat:.4f}°N, {lon:.4f}°E\n*Signal Strength:* {target.rssi} dBm\n[Find on FlightAware](https://flightaware.com/live/modes/{target.hex}/ident/{target.ident.strip()}/redirect)"
+    alt = target.alt_baro.replace("ground", "Ground / 0")
+    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {alt}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat:.4f}°N, {lon:.4f}°E\n*Signal Strength:* {target.rssi} dBm\n[Find on FlightAware](https://flightaware.com/live/modes/{target.hex}/ident/{target.ident.strip()}/redirect)"
     if (lat and lon):
         buttons[0].append(InlineKeyboardButton("Map", callback_data=f"map_{lat}_{lon}"))
     keyboard = InlineKeyboardMarkup(buttons)
