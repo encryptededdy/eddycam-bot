@@ -60,7 +60,7 @@ async def adsb_summary(update: Update, context: CallbackContext.DEFAULT_TYPE):
 async def adsb_list(update: Update, context: CallbackContext.DEFAULT_TYPE):
     show_ground = (len(context.args) > 0 and context.args[0] == "ground")
     aircraft = parse1090.parse_aircraft(dump1090_url)
-    filtered_aircraft = parse1090.with_ident(aircraft) if show_ground else parse1090.in_sky_and_ident(aircraft)
+    filtered_aircraft = parse1090.with_ident(aircraft, True) if show_ground else parse1090.in_sky_and_ident(aircraft)
     filtered_aircraft.sort(key=lambda ac: ac.rssi, reverse=True)
     output = f"*Listing {len(filtered_aircraft)} aircraft in the air and with idents*\n"
     filtered_aircraft_text = [f"{ac.ident.strip()} at {str(ac.alt_baro).replace('ground', 'Ground / 0')}ft, {ac.rssi} dBm" for ac in filtered_aircraft]
