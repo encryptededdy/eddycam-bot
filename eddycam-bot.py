@@ -30,7 +30,9 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
-dump1090_url = "http://localhost:8080/data/aircraft.json"
+with open('adsb.txt') as f:
+    dump1090_url = f.readline().strip()
+
 last_env_request_time = 0
 env_cache = ""
 aircraft_button_row_size = 3
