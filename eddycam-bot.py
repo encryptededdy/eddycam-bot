@@ -30,7 +30,7 @@ def process_chat_id(line):
 with open('allowedchatid.txt') as f:
     allowed_chats = list(map(process_chat_id, f.readlines()))
 
-dump1090_url = "http://localhost:8080/data/aircraft.json"
+dump1090_url = "http://eddypi2:8080/data/aircraft.json"
 last_env_request_time = 0
 env_cache = ""
 aircraft_button_row_size = 3
@@ -71,17 +71,20 @@ async def adsb_info_update(update: Update, context: CallbackContext.DEFAULT_TYPE
     print("Getting data for "+hex)
     aircraft = parse1090.parse_aircraft(dump1090_url)
     target_list = list(filter(lambda ac: (ac.hex == hex), aircraft))
-    if not target_list and ac.ident and ac.ident.strip() and ac.alt_baro:
+    buttons = [[ InlineKeyboardButton("Refresh", callback_data=query.data) ]]
+    if not target_list:
         await query.edit_message_text(text="Couldn't find the aircraft anymore :(")
         return
     target = target_list[0]
+    if not (target.ident and target.ident.strip() and target.alt_baro):
+        await query.edit_message_text(text="Detected, but not enough signal to decode anymore :(", reply_markup=InlineKeyboardMarkup(buttons))
+        return
     squawk = target.squawk or "Unknown"
     gs = target.gs or "Unknown"
     heading = target.track or "Unknown"
     lat = float(target.lat) or "Unknown"
     lon = float(target.lon) or "Unknown"
-    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {target.alt_baro}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat:.4f}°N, {lon:.4f}°E\n*Signal Strength:* {target.rssi} dBm"
-    buttons = [[ InlineKeyboardButton("Refresh", callback_data=query.data) ]]
+    output = f"*Ident:* {target.ident.strip()}\n*Altitude (barometric):* {target.alt_baro}ft\n*Ground Speed:* {gs}kt\n*Squawk:* {squawk}\n*Heading:* {heading}°\n*Position:* {lat:.4f}°N, {lon:.4f}°E\n*Signal Strength:* {target.rssi} dBm\n[Find on FlightAware](https://flightaware.com/live/modes/{target.hex}/ident/{target.ident.strip()}/redirect)"
     if (lat and lon):
         buttons[0].append(InlineKeyboardButton("Map", callback_data=f"map_{lat}_{lon}"))
     keyboard = InlineKeyboardMarkup(buttons)
