@@ -36,6 +36,7 @@ with open('adsb.txt') as f:
 
 last_env_request_time = 0
 last_history_request_time = 0
+last_animation_request_time = 0
 last_history_request = ""
 env_cache = ""
 aircraft_button_row_size = 3
@@ -190,7 +191,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
     global last_history_request_time
     global last_history_request
     if (last_history_request_time > int(time.time()) - 5):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Ratelimited")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimited - culprit is {update.effective_user.first_name} (id {update.effective_user.id})")
     query = update.callback_query
     if (query.data == last_history_request):
         logging.warning("Ignored duplicate request")
@@ -199,38 +200,75 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
     data = remove_prefix(query.data, "cameralog_").split("@")
     folder = data[0]
     image_id_requested = int(data[1]) if len(data) > 1 else None
+    second_image_id_requested = int(data[2]) if len(data) > 2 else None
     cache_path = os.path.join(sys.argv[1], 'history.jpg')
     last_history_request_time = int(time.time())
-    (id, max_id) = sftpcrawler.get_image(folder, cache_path, image_id_requested)
-    # Build up allowed nav buttons
-    minor_nav = []
-    if (id >= 3):
-        minor_nav.append(InlineKeyboardButton("<15m", callback_data=f"cameralog_{folder}@{id - 3}"))
-    if (id >= 1):
-        minor_nav.append(InlineKeyboardButton("<5m", callback_data=f"cameralog_{folder}@{id - 1}"))
-    if (id <= max_id - 1):
-        minor_nav.append(InlineKeyboardButton(">5m", callback_data=f"cameralog_{folder}@{id + 1}"))
-    if (id <= max_id - 3):
-        minor_nav.append(InlineKeyboardButton(">15m", callback_data=f"cameralog_{folder}@{id + 3}"))
-    major_nav = []
-    if (id >= 48):
-        major_nav.append(InlineKeyboardButton("<<4h", callback_data=f"cameralog_{folder}@{id - 48}"))
-    if (id >= 12):
-        major_nav.append(InlineKeyboardButton("<<1h", callback_data=f"cameralog_{folder}@{id - 12}"))
-    if (id <= max_id - 12):
-        major_nav.append(InlineKeyboardButton(">>1h", callback_data=f"cameralog_{folder}@{id + 12}"))
-    if (id <= max_id - 48):
-        major_nav.append(InlineKeyboardButton(">>4h", callback_data=f"cameralog_{folder}@{id + 48}"))
-    keyboard = InlineKeyboardMarkup([minor_nav, major_nav])
-    await query.answer()
-    if (image_id_requested == None):
-        # Fresh message
-        await query.edit_message_text(text=f"Selected {folder}")
-        await context.bot.send_photo(update.effective_chat.id, photo=open(cache_path, "rb"), reply_markup=keyboard)
+    if not second_image_id_requested:
+        # Regular request
+        (id, max_id) = sftpcrawler.get_image(folder, cache_path, image_id_requested)
+        # Build up allowed nav buttons
+        minor_nav = []
+        if (id >= 3):
+            minor_nav.append(InlineKeyboardButton("<15m", callback_data=f"cameralog_{folder}@{id - 3}"))
+        if (id >= 1):
+            minor_nav.append(InlineKeyboardButton("<5m", callback_data=f"cameralog_{folder}@{id - 1}"))
+        if (id <= max_id - 1):
+            minor_nav.append(InlineKeyboardButton(">5m", callback_data=f"cameralog_{folder}@{id + 1}"))
+        if (id <= max_id - 3):
+            minor_nav.append(InlineKeyboardButton(">15m", callback_data=f"cameralog_{folder}@{id + 3}"))
+        major_nav = []
+        if (id >= 48):
+            major_nav.append(InlineKeyboardButton("<<4h", callback_data=f"cameralog_{folder}@{id - 48}"))
+        if (id >= 12):
+            major_nav.append(InlineKeyboardButton("<<1h", callback_data=f"cameralog_{folder}@{id - 12}"))
+        if (id <= max_id - 12):
+            major_nav.append(InlineKeyboardButton(">>1h", callback_data=f"cameralog_{folder}@{id + 12}"))
+        if (id <= max_id - 48):
+            major_nav.append(InlineKeyboardButton(">>4h", callback_data=f"cameralog_{folder}@{id + 48}"))
+        aux_nav = []
+        if (id >= 36):
+            aux_nav.append(InlineKeyboardButton("🎞️ -3h", callback_data=f"cameralog_{folder}@{id - 36}@{id}"))
+        if (id <= max_id - 36):
+            aux_nav.append(InlineKeyboardButton("🎞️ +3h", callback_data=f"cameralog_{folder}@{id}@{id + 36}"))
+        aux_nav.append(InlineKeyboardButton("Save", callback_data=f"cameralog_{folder}@{id}@{id}"))
+        keyboard = InlineKeyboardMarkup([minor_nav, major_nav, aux_nav])
+        await query.answer()
+        if (image_id_requested == None):
+            # Fresh message
+            await query.edit_message_text(text=f"Selected {folder}")
+            await context.bot.send_photo(update.effective_chat.id, photo=open(cache_path, "rb"), reply_markup=keyboard)
+        else:
+            # Edit existing message
+            photo_to_send = InputMediaPhoto(media=open(cache_path, "rb"))
+            await query.edit_message_media(media=photo_to_send, reply_markup=keyboard)
     else:
-        # Edit existing message
-        photo_to_send = InputMediaPhoto(media=open(cache_path, "rb"))
-        await query.edit_message_media(media=photo_to_send, reply_markup=keyboard)
+        # Freeze or Animation request
+        if second_image_id_requested == image_id_requested:
+            # freeze by removing buttons
+            if query.message.photo:
+                old_image = query.message.photo[0].file_id
+                await query.answer()
+                await query.edit_message_media(media=InputMediaPhoto(old_image)) # no markup
+                return
+            else:
+                return # message too old, ah well
+        else:
+            # animate!
+            if (last_history_request_time > int(time.time()) - 30):
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is cooling down - called by {update.effective_user.first_name} (id {update.effective_user.id})")
+                return
+            animation_cache_path = os.path.join(sys.argv[1], 'camhistory')
+            if (os.path.isdir(animation_cache_path)):
+                # Clear out the directory
+                for file in os.listdir(animation_cache_path):
+                    os.unlink(os.path.join(animation_cache_path, file))
+            else:
+                os.mkdir(animation_cache_path)
+            sftpcrawler.get_images(folder, animation_cache_path, image_id_requested, second_image_id_requested)
+            animation_video_cache = os.path.join(sys.argv[1], 'animation_cache_recording.mp4')
+            os.system(f'ffmpeg -framerate 8 -pattern_type glob -i "{animation_cache_path}/*.jpg"  -s:v 1280x720 -c:v libx264 -crf 23 -pix_fmt yuv420p {animation_video_cache}')
+            await query.answer()
+            await context.bot.send_animation(update.effective_chat.id, open(animation_video_cache, "rb"), write_timeout=30)
 
 async def button_handler(update: Update, context: CallbackContext.DEFAULT_TYPE):
     query = update.callback_query
