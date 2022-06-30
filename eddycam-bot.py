@@ -192,6 +192,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
     global last_history_request_time
     global last_history_request
     global last_bonkmessage_time
+    global last_animation_request_time
     if (last_history_request_time > int(time.time()) - 5):
         if (last_bonkmessage_time > int(time.time() - 30)):
             last_bonkmessage_time = int(time.time())
@@ -259,8 +260,6 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
                 return # message too old, ah well
         else:
             # animate!
-            global last_animation_request_time
-            global last_bonkmessage_time
             if (last_animation_request_time > int(time.time()) - 30):
                 if (last_bonkmessage_time > int(time.time() - 10)):
                     last_bonkmessage_time = int(time.time())
