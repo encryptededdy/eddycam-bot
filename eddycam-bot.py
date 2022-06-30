@@ -270,7 +270,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
             sftpcrawler.get_images(folder, animation_cache_path, image_id_requested, second_image_id_requested)
             animation_video_cache = os.path.join(sys.argv[1], 'animation_cache_recording.mp4')
             await query.answer()
-            os.system(f'ffmpeg -framerate 8 -pattern_type glob -i "{animation_cache_path}/*.jpg"  -s:v 1280x720 -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p {animation_video_cache}')
+            os.system(f'ffmpeg -y -framerate 8 -pattern_type glob -i "{animation_cache_path}/*.jpg"  -s:v 1280x720 -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p {animation_video_cache}')
             await context.bot.send_animation(update.effective_chat.id, open(animation_video_cache, "rb"), write_timeout=30)
 
 async def button_handler(update: Update, context: CallbackContext.DEFAULT_TYPE):
