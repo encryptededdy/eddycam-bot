@@ -194,7 +194,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
     global last_bonkmessage_time
     global last_animation_request_time
     if (last_history_request_time > int(time.time()) - 5):
-        if (last_bonkmessage_time > int(time.time() - 30)):
+        if (last_bonkmessage_time < int(time.time() - 30)):
             last_bonkmessage_time = int(time.time())
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimited - culprit is {update.effective_user.first_name} (id {update.effective_user.id})")
         return
@@ -261,7 +261,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
         else:
             # animate!
             if (last_animation_request_time > int(time.time()) - 30):
-                if (last_bonkmessage_time > int(time.time() - 10)):
+                if (last_bonkmessage_time < int(time.time() - 10)):
                     last_bonkmessage_time = int(time.time())
                     await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is on cooldown - called by {update.effective_user.first_name} (id {update.effective_user.id})")
                 return
