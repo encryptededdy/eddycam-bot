@@ -254,8 +254,9 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
                 return # message too old, ah well
         else:
             # animate!
+            global last_animation_request_time
             if (last_animation_request_time > int(time.time()) - 30):
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is cooling down - called by {update.effective_user.first_name} (id {update.effective_user.id})")
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is on cooldown - called by {update.effective_user.first_name} (id {update.effective_user.id})")
                 return
             last_animation_request_time = int(time.time())
             animation_cache_path = os.path.join(sys.argv[1], 'camhistory')
@@ -265,6 +266,7 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
                     os.unlink(os.path.join(animation_cache_path, file))
             else:
                 os.mkdir(animation_cache_path)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Producing animation requested by {update.effective_user.first_name}...")
             sftpcrawler.get_images(folder, animation_cache_path, image_id_requested, second_image_id_requested)
             animation_video_cache = os.path.join(sys.argv[1], 'animation_cache_recording.mp4')
             os.system(f'ffmpeg -framerate 8 -pattern_type glob -i "{animation_cache_path}/*.jpg"  -s:v 1280x720 -c:v libx264 -crf 23 -pix_fmt yuv420p {animation_video_cache}')
