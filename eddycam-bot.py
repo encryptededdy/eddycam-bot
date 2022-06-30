@@ -254,9 +254,10 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
                 return # message too old, ah well
         else:
             # animate!
-            if (last_history_request_time > int(time.time()) - 30):
+            if (last_animation_request_time > int(time.time()) - 30):
                 await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is cooling down - called by {update.effective_user.first_name} (id {update.effective_user.id})")
                 return
+            last_animation_request_time = int(time.time())
             animation_cache_path = os.path.join(sys.argv[1], 'camhistory')
             if (os.path.isdir(animation_cache_path)):
                 # Clear out the directory
