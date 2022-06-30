@@ -37,6 +37,7 @@ with open('adsb.txt') as f:
 last_env_request_time = 0
 last_history_request_time = 0
 last_animation_request_time = 0
+last_bonkmessage_time = 0
 last_history_request = ""
 env_cache = ""
 aircraft_button_row_size = 3
@@ -190,8 +191,12 @@ async def camera_history(update: Update, context: CallbackContext.DEFAULT_TYPE):
 async def camera_history_browser(update: Update, context: CallbackContext.DEFAULT_TYPE):
     global last_history_request_time
     global last_history_request
+    global last_bonkmessage_time
     if (last_history_request_time > int(time.time()) - 5):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimited - culprit is {update.effective_user.first_name} (id {update.effective_user.id})")
+        if (last_bonkmessage_time > int(time.time() - 30)):
+            last_bonkmessage_time = int(time.time())
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ratelimited - culprit is {update.effective_user.first_name} (id {update.effective_user.id})")
+        return
     query = update.callback_query
     if (query.data == last_history_request):
         logging.warning("Ignored duplicate request")
@@ -255,8 +260,11 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
         else:
             # animate!
             global last_animation_request_time
+            global last_bonkmessage_time
             if (last_animation_request_time > int(time.time()) - 30):
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is on cooldown - called by {update.effective_user.first_name} (id {update.effective_user.id})")
+                if (last_bonkmessage_time > int(time.time() - 10)):
+                    last_bonkmessage_time = int(time.time())
+                    await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Animation is on cooldown - called by {update.effective_user.first_name} (id {update.effective_user.id})")
                 return
             last_animation_request_time = int(time.time())
             animation_cache_path = os.path.join(sys.argv[1], 'camhistory')
@@ -267,9 +275,9 @@ async def camera_history_browser(update: Update, context: CallbackContext.DEFAUL
             else:
                 os.mkdir(animation_cache_path)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Producing animation requested by {update.effective_user.first_name}...")
+            await query.answer()
             sftpcrawler.get_images(folder, animation_cache_path, image_id_requested, second_image_id_requested)
             animation_video_cache = os.path.join(sys.argv[1], 'animation_cache_recording.mp4')
-            await query.answer()
             os.system(f'ffmpeg -y -framerate 8 -pattern_type glob -i "{animation_cache_path}/*.jpg"  -s:v 1280x720 -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p {animation_video_cache}')
             await context.bot.send_animation(update.effective_chat.id, open(animation_video_cache, "rb"), write_timeout=30)
 
