@@ -183,7 +183,7 @@ async def camera_history(update: Update, context: CallbackContext.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Invalid camera ID")
         return
     days = sftpcrawler.list_days(camera_index)
-    buttons = [InlineKeyboardButton(day[0], callback_data=f"cameralog_{day[1]}") for day in days[:14]]
+    buttons = [InlineKeyboardButton(day[0], callback_data=f"cameralog_{day[1]}") for day in days[-14:]]
     buttons_matrix = group_buttons(2, buttons)
     keyboard = InlineKeyboardMarkup(buttons_matrix)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Avaliable Dates for Camera {camera_index}", reply_markup=keyboard)
