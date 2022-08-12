@@ -5,22 +5,33 @@ from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CallbackContext, CommandHandler, filters, CallbackQueryHandler
 from qingping import qingping
 from parse1090 import parse1090
+from requests.auth import HTTPBasicAuth, HTTPDigestAuth
 import os
 import sys
 import time
 import itertools
 import sftpcrawler
+import json
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-with open('imageurl.txt') as f:
-    imageurls = list(filter(None, (line.rstrip() for line in f)))
-
-with open('rtspurl.txt') as f:
-    rtspurls = list(filter(None, (line.rstrip() for line in f)))
+# For instance;
+# {
+#     "cameras": [
+#         {
+#             "name": "My Camera",
+#             "image": "http://192.168.1.18/jpg/1/image.jpg",
+#             "rtsp": "rtsp://192.168.1.18/axis-media/media.amp?streamprofile=720lbr",
+#             "username": "myUsername",
+#             "password": "myPassword",
+#             "digest": true
+#         }
+#     ]
+# }
+camera_config = json.load(open('camera_config.json', 'r'))
 
 with open('key.txt') as f:
     token = f.readline().strip()
@@ -47,8 +58,17 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text  # or whatever
 
-def to_input_media_photo(url):
-    image_request = requests.get(url)
+def rtsp_url_add_auth(camera):
+    return camera["rtsp"].replace("rtsp://", f"rtsp://{camera['username']}:{camera['password']}@")
+
+def requests_auth_from_camera(camera):
+    if (camera["digest"]):
+        return HTTPDigestAuth(camera["username"], camera["password"])
+    else:
+        return HTTPBasicAuth(camera["username"], camera["password"])
+
+def to_input_media_photo(camera):
+    image_request = requests.get(camera["image"], auth=requests_auth_from_camera(camera))
     return InputMediaPhoto(media=bytes(image_request.content))
 
 def grouper(n, iterable, fillvalue=None):
@@ -143,19 +163,19 @@ async def snapshot(update: Update, context: CallbackContext.DEFAULT_TYPE):
     except ValueError:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
         return
-    if (camera_index >= len(imageurls)):
+    if (camera_index >= len(camera_config["cameras"])):
          await context.bot.send_message(chat_id=update.effective_chat.id, text="Camera doesn't exist")
          return
     if (camera_index == -1):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Taking your pictures...")
-        photos = list(map(to_input_media_photo, imageurls))
+        photos = list(map(to_input_media_photo, camera_config["cameras"]))
         await context.bot.send_media_group(update.effective_chat.id, photos)
     else:
-        image_request = requests.get(imageurls[camera_index])
+        image_request = requests.get(camera_config["cameras"][camera_index]["image"], auth=requests_auth_from_camera(camera_config["cameras"][camera_index]))
         if isRaw:
-            await context.bot.send_document(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu")
+            await context.bot.send_document(update.effective_chat.id, bytes(image_request.content), caption=f"here's your picture for {camera_config['cameras'][camera_index]['name']} uwu")
         else:
-            await context.bot.send_photo(update.effective_chat.id, bytes(image_request.content), caption="here's your picture uwu", filename="eddycam.jpg")
+            await context.bot.send_photo(update.effective_chat.id, bytes(image_request.content), caption=f"here's your picture for {camera_config['cameras'][camera_index]['name']} uwu", filename="eddycam.jpg")
 
 
 async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
@@ -164,13 +184,13 @@ async def clip(update: Update, context: CallbackContext.DEFAULT_TYPE):
     except ValueError:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Expected int or blank")
         return
-    if (camera_index >= len(rtspurls)):
+    if (camera_index >= len(camera_config["cameras"])):
          await context.bot.send_message(chat_id=update.effective_chat.id, text="Camera doesn't exist")
          return
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'll record a 10s clip for you!...")
     path = os.path.join(sys.argv[1], 'rtsp_cache_recording.mp4')
-    os.system(f'ffmpeg -y -rtsp_transport tcp -i "{rtspurls[camera_index]}" -c copy -t 10 {path}')
-    await context.bot.send_video(update.effective_chat.id, open(path, "rb"), caption="here's your clip ^w^",
+    os.system(f'ffmpeg -y -rtsp_transport tcp -i "{rtsp_url_add_auth(camera_config["cameras"][camera_index])}" -c copy -t 10 {path}')
+    await context.bot.send_video(update.effective_chat.id, open(path, "rb"), caption=f"here's your clip for {camera_config['cameras'][camera_index]['name']} ^w^",
                                  write_timeout=60)
 
 async def camera_history(update: Update, context: CallbackContext.DEFAULT_TYPE):
